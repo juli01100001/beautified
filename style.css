@@ -68,9 +68,37 @@ body {
   overflow-wrap: break-word;
 }
 
-#editor span.str { color: var(--str); }
-#editor span.num { color: var(--num); }
-#editor span.kw { color: var(--kw); }
-#editor span.func { color: var(--func); }
-#editor span.url { color: var(--url); text-decoration: underline; }
-#editor span.sus { color: var(--suspect); font-weight: bold; }
+
+.hl-token-aws,
+.hl-token,
+.hl-jwt,
+.hl-url,
+.hl-b64,
+.hl-susp {
+  color: var(--suspect);
+}
+
+.hl-url {
+  color: var(--url);
+  text-decoration: underline;
+}
+
+.hl-token-aws {
+  color: #ff9800; /* laranja forte */
+}
+
+.hl-jwt {
+  color: #7c4dff; /* roxo */
+}
+
+.hl-token {
+  color: #ff4d4d; /* vermelho claro */
+}
+
+.hl-b64 {
+  color: #2979ff; /* azul */
+}
+
+.hl-susp {
+  color: var(--suspect);
+}
