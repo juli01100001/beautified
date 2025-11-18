@@ -52,49 +52,53 @@ function escapeHtml(s) {
 function scanSensitivePatterns(code) {
   const findings = [];
   let m;
-
-  const urls = /\b(?:https?|ftp):\/\/[^\s"'`]+/g;
-  while ((m = urls.exec(code)) !== null)
-    findings.push({type:"url", value:m[0], index:m.index, length:m[0].length});
-
-  const base64 = /\b[A-Za-z0-9+\/]{20,}={0,2}\b/g;
-  while ((m = base64.exec(code)) !== null)
-    findings.push({type:"base64_long", value:m[0], index:m.index, length:m[0].length});
-
-  const jwt = /\b[A-Za-z0-9-_]{10,}\.[A-Za-z0-9-_]{10,}\.[A-Za-z0-9-_]{10,}\b/g;
-  while ((m = jwt.exec(code)) !== null)
-    findings.push({type:"secret", value:m[0], index:m.index, length:m[0].length});
-
-  const awsAccess = /\bAKIA[0-9A-Z]{16}\b/g;
-  while ((m = awsAccess.exec(code)) !== null)
-    findings.push({type:"secret", value:m[0], index:m.index, length:m[0].length});
-
-  const longTokens = /\b[A-Za-z0-9_\-=]{25,}\b/g;
-  while ((m = longTokens.exec(code)) !== null)
-    findings.push({type:"secret", value:m[0], index:m.index, length:m[0].length});
-
-  return findings;
+  const list = [
+    {type:"url", re: /\b(?:https?|ftp):\/\/[^\s"'`<>]+/g, pr: 100},
+    {type:"jwt", re: /\b[A-Za-z0-9-_]{10,}\.[A-Za-z0-9-_]{10,}\.[A-Za-z0-9-_]{10,}\b/g, pr: 90},
+    {type:"aws_access_key", re: /\bAKIA[0-9A-Z]{16}\b/g, pr: 95},
+    {type:"base64_long", re: /\b[A-Za-z0-9+\/]{25,}={0,2}\b/g, pr: 40},
+    {type:"secret_long", re: /\b[A-Za-z0-9_\-+=\/]{25,}\b/g, pr: 30}
+  ];
+  for (const pat of list) {
+    pat.re.lastIndex = 0;
+    while ((m = pat.re.exec(code)) !== null) {
+      findings.push({type:pat.type, value:m[0], index:m.index, length:m[0].length, pr:pat.pr});
+    }
+  }
+  findings.sort((a,b)=>a.index - b.index || b.length - a.length);
+  const picked = [];
+  for (const f of findings) {
+    let overlap = false;
+    for (let i = 0; i < picked.length; i++) {
+      const p = picked[i];
+      if (!(f.index + f.length <= p.index || f.index >= p.index + p.length)) {
+        if (f.pr > p.pr) { picked.splice(i,1); i--; continue; } else { overlap = true; break; }
+      }
+    }
+    if (!overlap) picked.push(f);
+  }
+  return picked;
 }
 
-function annotateSensitive(escapedCode, findings) {
-  if (!findings.length) return escapedCode.replace(/\n/g,"<br>");
-  findings.sort((a,b)=>b.index-a.index);
-  let out = escapedCode;
+function annotateSensitive(rawCode, findings) {
+  if (!findings || !findings.length) return escapeHtml(rawCode).replace(/\n/g,"<br>");
+  findings.sort((a,b)=>b.index - a.index);
+  let out = rawCode;
   for (const f of findings) {
-    const start = f.index;
+    const s = f.index;
     const len = f.length;
-    const before = out.slice(0, start);
-    const mid = out.slice(start, start+len);
-    const after = out.slice(start+len);
-    const cls = {
-      url: "hl-url",
-      base64_long: "hl-b64",
-      secret: "hl-secret"
-    }[f.type] || "hl-secret";
-    out = before + `<span class="${cls}">${mid}</span>` + after;
+    const before = out.slice(0,s);
+    const mid = out.slice(s,s+len);
+    const after = out.slice(s+len);
+    const cls = (f.type==="url"?"hl-url":f.type==="base64_long"?"hl-b64":"hl-secret");
+    out = before + `<span class="${cls}">` + escapeHtml(mid) + `</span>` + after;
   }
   out = out.replace(/\n/g,"<br>");
   return out;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
 
